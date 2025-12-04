@@ -435,12 +435,40 @@ const styles = StyleSheet.create({
   
   // Menu tab styles
   search: { backgroundColor: '#fff', padding: 14, borderRadius: 16, marginBottom: 12, fontSize: 16, elevation: 2 },
-  categoryList: { paddingVertical: 8, paddingHorizontal: 4 },
-  categoryBtn: { backgroundColor: '#fff', paddingHorizontal: 24, paddingVertical: 14, borderRadius: 20, marginHorizontal: 6, elevation: 3, minWidth: 90, alignItems: 'center' },
+  
+  // SỬA: Tăng chiều cao danh sách danh mục để tránh bị cắt bóng đổ
+  categoryList: { 
+    paddingVertical: 10, // Tăng padding dọc
+    paddingHorizontal: 4,
+    marginBottom: 16,
+  },
+  
+  // SỬA: Nút danh mục linh hoạt hơn
+  categoryBtn: { 
+    backgroundColor: '#fff', 
+    paddingHorizontal: 20, // Giảm padding ngang một chút
+    paddingVertical: 10,   // Padding dọc vừa phải
+    borderRadius: 20, 
+    marginHorizontal: 6, 
+    elevation: 3, 
+    // minWidth: 90, // BỎ minWidth cứng để nút co giãn theo text
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44, // Chiều cao nút cố định để đồng đều
+  },
+  
   categoryBtnActive: { backgroundColor: '#FF6B35' },
-  categoryText: { fontSize: 16, fontWeight: '600', color: '#555' },
+  
+  categoryText: { 
+    fontSize: 15, // Giảm font size xíu nếu tên dài
+    fontWeight: '600', 
+    color: '#555',
+    textAlign: 'center', // Canh giữa text
+  },
+  
   categoryTextActive: { color: '#fff', fontWeight: '700' },
-  menuCard: { flex: 1, margin: 8, backgroundColor: '#fff', padding: 16, borderRadius: 16, elevation: 3, alignItems: 'center' },
+  
+  menuCard: { flex: 1, margin: 10, backgroundColor: '#fff', padding: 16, borderRadius: 16, elevation: 3, alignItems: 'center' },
   menuName: { fontSize: 16, fontWeight: '600', textAlign: 'center' },
   menuPrice: { color: '#FF6B35', fontWeight: 'bold', marginVertical: 4 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: 8 },
