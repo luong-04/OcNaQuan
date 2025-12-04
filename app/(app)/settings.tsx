@@ -4,7 +4,7 @@
 import { Picker } from '@react-native-picker/picker';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Button, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Button, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuth } from '../../src/auth/AuthContext';
 import { supabase } from '../../src/services/supabase';
@@ -57,13 +57,14 @@ export default function SettingsScreen() {
   const { session } = useAuth(); 
 
   const handleLogout = async () => {
-    setIsLoading(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      Alert.alert('Lỗi', error.message);
+    try {
+      await supabase.auth.signOut(); 
+      // KHÔNG ĐƯỢC CÓ DÒNG NÀY: router.replace('/'); 
+      // KHÔNG ĐƯỢC CÓ DÒNG NÀY: router.replace('/(auth)/login');
+      // Hook useAuthProtection sẽ tự động phát hiện session = null và đá về Login
+    } catch (error) {
+      console.log(error);
     }
-    // Không cần else, file app/_layout.tsx sẽ tự xử lý
-    setIsLoading(false);
   };
 
   // 3. Dòng này bây giờ sẽ chạy đúng
