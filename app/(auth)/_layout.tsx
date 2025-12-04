@@ -1,97 +1,29 @@
-// app/(auth)/login.tsx
-import { zodResolver } from '@hookform/resolvers/zod';
-import React from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { supabase } from '../../src/services/supabase';
-// Bỏ import 'router' và 'useAuthStore'
-import { loginSchema, LoginSchema } from '../../types';
+// File: app/(auth)/_layout.tsx
+import { Redirect, Stack } from 'expo-router';
+import { ActivityIndicator, View } from 'react-native';
+import { useAuth } from '../../src/auth/AuthContext';
 
-export default function LoginScreen() {
-  // Bỏ useAuthStore
-  
-  const { control, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginSchema>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
-  });
+export default function AuthLayout() {
+  const { session, isLoading } = useAuth();
 
-  // **FIX LỖI ĐIỀU HƯỚNG:**
-  const handleLogin = async (data: LoginSchema) => {
-    // 1. Chỉ gọi hàm đăng nhập
-    const { error } = await supabase.auth.signInWithPassword({
-      email: data.email,
-      password: data.password,
-    });
+  // 1. Chờ load thông tin user
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#FF6B35" />
+      </View>
+    );
+  }
 
-    if (error) {
-      Alert.alert('Lỗi đăng nhập', error.message);
-    }
-    
-    // 2. KHÔNG LÀM GÌ NỮA.
-    // AuthProvider trong _layout.tsx sẽ tự động phát hiện
-    // sự kiện 'signIn' và tự điều hướng.
-  };
+  // 2. NẾU ĐÃ CÓ SESSION (Đăng nhập thành công) -> Tự động chuyển vào Home
+  if (session) {
+    return <Redirect href="/(app)/home" />;
+  }
 
-  // ... (Toàn bộ phần JSX và Styles giữ nguyên y hệt V3) ...
+  // 3. Nếu chưa đăng nhập -> Hiển thị màn hình Login
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Đăng nhập Ốc Na</Text>
-      
-      <Controller
-        control={control}
-        name="email"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            style={styles.input}
-            placeholder="Nhập tài khoản"
-            value={value}
-            onBlur={onBlur}
-            onChangeText={onChange}
-            autoCapitalize="none"
-            keyboardType="email-address"
-          />
-        )}
-      />
-      {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
-
-      <Controller
-        control={control}
-        name="password"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            style={styles.input}
-            placeholder="Nhập mật khẩu"
-            value={value}
-            onBlur={onBlur}
-            onChangeText={onChange}
-            secureTextEntry
-          />
-        )}
-      />
-      {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
-
-      <TouchableOpacity 
-        style={[styles.btn, isSubmitting && styles.btnDisabled]} 
-        onPress={handleSubmit(handleLogin)}
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.btnText}>Đăng nhập</Text>
-        )}
-      </TouchableOpacity>
-    </View>
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="login" />
+    </Stack>
   );
 }
-
-// ... (Styles giữ nguyên y hệt V3)
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#f9f9f9' },
-  title: { fontSize: 32, fontWeight: 'bold', color: '#FF6B35', textAlign: 'center', marginBottom: 40,fontFamily: 'SVN-Bold' },
-  input: { backgroundColor: '#fff', padding: 16, borderRadius: 16, marginBottom: 16, fontSize: 16, elevation: 2 },
-  btn: { backgroundColor: '#FF6B35', padding: 16, borderRadius: 16, alignItems: 'center', height: 58, justifyContent: 'center' },
-  btnDisabled: { opacity: 0.7 },
-  btnText: { color: '#fff', fontWeight: '600', fontSize: 18, fontFamily: 'SVN-Bold' },
-  errorText: { color: 'red', marginBottom: 10, marginLeft: 5 },
-});

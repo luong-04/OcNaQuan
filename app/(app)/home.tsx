@@ -1,266 +1,183 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { router, useFocusEffect } from 'expo-router'; // 1. Thêm 'useFocusEffect'
-import { Plus } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react'; // 2. Thêm 'useCallback'
-import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
-import { addTable, deleteTable, fetchActiveTables, loadTables } from '../../src/api/homeApi';
+// File: app/(app)/home.tsx
+import { Stack, router } from 'expo-router';
+import { Armchair, LogOut } from 'lucide-react-native';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Image as RNImage, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useAuth } from '../../src/auth/AuthContext';
+import { supabase } from '../../src/services/supabase';
+
+// Định nghĩa kiểu dữ liệu Bàn
+type Table = {
+  id: number;
+  name: string;
+  status: 'empty' | 'occupied'; 
+};
 
 export default function HomeScreen() {
-  const queryClient = useQueryClient();
-  const [modalVisible, setModalVisible] = useState(false);
-  const [tableName, setTableName] = useState('');
-
   const { role } = useAuth();
-  
-  // Query lấy danh sách bàn (master list)
-  const { data: allTables, isLoading: isLoadingAllTables } = useQuery({
-    queryKey: ['tables'],
-    queryFn: loadTables,
-  });
+  const [tables, setTables] = useState<Table[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Query lấy bàn đang MỞ (active)
-  const { data: activeTables, isLoading: isLoadingActiveTables } = useQuery({
-    queryKey: ['activeTables'],
-    queryFn: fetchActiveTables,
-  });
+  // Hàm lấy danh sách bàn từ Supabase
+  const fetchTables = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('tables')
+        .select('*')
+        .order('id', { ascending: true });
 
-  // 4. FIX CẬP NHẬT BÀN:
-  // Dùng 'useFocusEffect' để tự động 'refetch' (tải lại)
-  // query 'activeTables' mỗi khi màn hình này được quay lại.
-  useFocusEffect(
-    useCallback(() => {
-      // Báo cho react-query rằng dữ liệu 'activeTables' đã cũ
-      // và cần được tải lại
-      queryClient.invalidateQueries({ queryKey: ['activeTables'] });
-      
-      // Chúng ta cũng nên tải lại danh sách bàn chính,
-      // phòng trường hợp admin vừa thêm/xóa bàn
-      queryClient.invalidateQueries({ queryKey: ['tables'] });
-
-    }, [queryClient])
-  );
-
-  // Đột biến (Mutation) để THÊM bàn
-  const addTableMutation = useMutation({
-    mutationFn: addTable,
-    onSuccess: (newTableName) => {
-      // Cập nhật cache 'tables'
-      queryClient.setQueryData(['tables'], (oldTables: string[] | undefined) => 
-        [...(oldTables || []), newTableName].sort((a, b) => (parseInt(a.replace(/\D/g, ''), 10) || 0) - (parseInt(b.replace(/\D/g, ''), 10) || 0))
-      );
-      setModalVisible(false);
-      setTableName('');
-    },
-    onError: (err: Error) => Alert.alert('Lỗi', err.message),
-  });
-
-  // Đột biến (Mutation) để XÓA bàn
-  const deleteTableMutation = useMutation({
-    mutationFn: deleteTable,
-    onSuccess: (deletedTableName) => {
-      // Cập nhật cache 'tables'
-      queryClient.setQueryData(['tables'], (oldTables: string[] | undefined) => 
-        (oldTables || []).filter(name => name !== deletedTableName)
-      );
-    },
-    onError: (err: Error) => Alert.alert('Lỗi', err.message),
-  });
-
-  const handleAddTable = () => {
-    if (tableName.trim()) {
-      addTableMutation.mutate(tableName.trim());
+      if (error || !data || data.length === 0) {
+        // Dữ liệu mẫu
+        setTables([
+          { id: 1, name: 'Bàn 1', status: 'empty' },
+          { id: 2, name: 'Bàn 2', status: 'occupied' },
+          { id: 3, name: 'Bàn 3', status: 'empty' },
+          { id: 4, name: 'Bàn 4', status: 'empty' },
+          { id: 5, name: 'Bàn 5', status: 'occupied' },
+          { id: 6, name: 'Bàn 6', status: 'empty' },
+        ]);
+      } else {
+        // --- SỬA Ở ĐÂY ---
+        const mappedTables: Table[] = data.map((item: any) => ({
+          id: item.id,
+          name: item.name,
+          // Map status, mặc định là empty nếu DB chưa có
+          status: item.status === 'occupied' ? 'occupied' : 'empty', 
+        }));
+        
+        // THÊM DÒNG NÀY ĐỂ CẬP NHẬT GIAO DIỆN
+        setTables(mappedTables); 
+        // ------------------
+      }
+    } catch (err) {
+      console.log(err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDeleteTable = (name: string) => {
-    Alert.alert(
-      'Xác nhận xóa',
-      `Bạn có chắc muốn xóa "${name}"? Thao tác này không thể hoàn tác.`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Xóa', style: 'destructive', onPress: () => deleteTableMutation.mutate(name) },
-      ]
-    );
+  useEffect(() => {
+    fetchTables();
+  }, []);
+
+  const handleLogout = async () => {
+    Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất không?', [
+      { text: 'Hủy', style: 'cancel' },
+      { 
+        text: 'Đồng ý', 
+        style: 'destructive',
+        onPress: async () => {
+          await supabase.auth.signOut();
+        }
+      }
+    ]);
   };
 
-  const renderTable = ({ item }: { item: string }) => {
-    // 'activeTables' giờ sẽ luôn được cập nhật,
-    // nên 'isActive' sẽ luôn đúng
-    const isActive = activeTables?.includes(item);
+  const handlePressTable = (table: Table) => {
+    router.push({
+      pathname: '/(app)/order',
+      params: { tableId: table.id, tableName: table.name }
+    });
+  };
+
+  const renderItem = ({ item }: { item: Table }) => {
+    const isOccupied = item.status === 'occupied';
     return (
-      <TouchableOpacity
-        style={[styles.tableBtn, isActive && styles.tableBtnActive]}
-        onPress={() => router.push({ pathname: '/(app)/order', params: { tableName: item } })}
-        onLongPress={() => role === 'admin' && handleDeleteTable(item)}
+      <TouchableOpacity 
+        style={[styles.card, isOccupied ? styles.cardOccupied : styles.cardEmpty]}
+        onPress={() => handlePressTable(item)}
       >
-        <Text style={[styles.tableText, isActive && styles.tableTextActive]}>
-          {item}
+        <Armchair size={32} color={isOccupied ? '#fff' : '#FF6B35'} />
+        <Text style={[styles.cardText, isOccupied && styles.textOccupied]}>
+          {item.name}
+        </Text>
+        <Text style={[styles.statusText, isOccupied && styles.textOccupied]}>
+          {isOccupied ? 'Có khách' : 'Trống'}
         </Text>
       </TouchableOpacity>
     );
   };
 
-  const isLoading = isLoadingAllTables || isLoadingActiveTables;
-
   return (
     <View style={styles.container}>
-      {/* 5. FIX LOGO: Thay thế <Text> bằng <Image> */}
-      {/* (Đảm bảo bạn đã copy file 'logo.png' [cite: luong-04/ocnaappv3/OcNaAppV3-3d1c74b77b8ce8bdbdbba313a1d631c1116ce271/assets/logo.png] vào thư mục 'assets') */}
-      <Image
-        source={require('../../assets/logo.png')}
-        style={styles.logo}
-        resizeMode="contain"
+      <Stack.Screen 
+        options={{
+          headerShown: true,
+          title: '', 
+          headerTitle: () => (
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/* SỬA 2: Dùng thẻ RNImage thay vì Image */}
+              <RNImage 
+                source={require('../../assets/logo.png')} 
+                style={{ width: 38, height: 38, marginRight: 10, borderRadius: 10 }} 
+                resizeMode="contain" 
+              />
+              <Text style={{ fontFamily: 'SVN-Bold', fontSize: 20, color: '#FF6B35' }}>
+                ỐC NA
+              </Text>
+            </View>
+          ),
+          headerRight: () => (
+            <TouchableOpacity onPress={handleLogout} style={{ marginRight: 10 }}>
+              <LogOut color="#333" size={24} />
+            </TouchableOpacity>
+          ),
+        }} 
       />
-      
-      {isLoading ? (
-        <ActivityIndicator size="large" color="#FF6B35" />
+
+      {loading ? (
+        <ActivityIndicator size="large" color="#FF6B35" style={{ marginTop: 50 }} />
       ) : (
         <FlatList
-          data={allTables || []}
-          renderItem={renderTable}
-          keyExtractor={(item) => item}
-          numColumns={3}
-          contentContainerStyle={styles.listContainer}
+          data={tables}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2} 
+          contentContainerStyle={styles.listContent}
+          columnWrapperStyle={styles.row}
         />
       )}
-
-      {/* (Phần FAB và Modal giữ nguyên) */}
-      {role === 'admin' && (
-        <TouchableOpacity style={styles.fab} onPress={() => setModalVisible(true)}>
-          <Plus size={28} color="#fff" />
-        </TouchableOpacity>
-      )}
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={modalVisible}
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalBackdrop}
-        >
-          <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>Thêm bàn mới</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Tên bàn (Ví dụ: Bàn 10, VIP 1)"
-              value={tableName}
-              onChangeText={setTableName}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnCancel]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.btnCancelText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btn, styles.btnSave]}
-                onPress={handleAddTable}
-                disabled={addTableMutation.isPending}
-              >
-                {addTableMutation.isPending ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.btnSaveText}>Lưu</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
     </View>
   );
 }
 
-// 6. Sửa Styles: Thêm style 'logo'
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9f9f9', padding: 16, paddingTop: 50 },
-  // Thêm style cho logo
-  logo: {
-    width: '80%',
-    height: 100,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  listContainer: { paddingHorizontal: 8 },
-  tableBtn: {
-    flex: 1,
-    margin: 8,
-    height: 100,
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  listContent: { padding: 16 },
+  row: { justifyContent: 'space-between', marginBottom: 16 },
+  card: {
+    width: '48%',
+    padding: 20,
     borderRadius: 16,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
+    justifyContent: 'center',
+    elevation: 3, 
+    shadowColor: '#000', 
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  tableBtnActive: { backgroundColor: '#FF6B35' },
-  tableText: { fontSize: 18, fontWeight: '600', color: '#333' },
-  tableTextActive: { color: '#fff', fontWeight: 'bold' },
-  fab: {
-    position: 'absolute',
-    bottom: 30,
-    right: 30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FF6B35',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-  },
-  modalBackdrop: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalView: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 35,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
-  input: {
-    width: '100%',
-    height: 50,
-    borderColor: '#ddd',
+  cardEmpty: {
+    backgroundColor: '#fff',
     borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 15,
-    marginBottom: 20,
-    fontSize: 16,
+    borderColor: '#eee',
   },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  btn: { flex: 1, padding: 15, borderRadius: 10, alignItems: 'center', marginHorizontal: 5 },
-  btnCancel: { backgroundColor: '#f0f0f0' },
-  btnCancelText: { color: '#333', fontWeight: '600' },
-  btnSave: { backgroundColor: '#FF6B35' },
-  btnSaveText: { color: '#fff', fontWeight: '600' },
+  cardOccupied: {
+    backgroundColor: '#FF6B35', 
+  },
+  cardText: {
+    marginTop: 8,
+    fontSize: 18,
+    fontFamily: 'SVN-Bold',
+    color: '#333',
+  },
+  statusText: {
+    marginTop: 4,
+    fontSize: 14,
+    color: '#888',
+  },
+  textOccupied: {
+    color: '#fff',
+  }
 });

@@ -1,32 +1,49 @@
-// app/(app)/_layout.tsx
-import { Tabs } from 'expo-router';
+// File: app/(app)/_layout.tsx
+import { Redirect, Tabs } from 'expo-router';
 import { BarChart4, Home, NotebookText, Settings, User, Utensils } from 'lucide-react-native';
-// Import 'useAuth' mới
+import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../../src/auth/AuthContext';
 
 type TabConfig = {
   name: string;
   title: string;
   icon: React.ElementType; 
-  href?: null;
-  condition: boolean;      
+  isHidden: boolean; // Thay vì condition, dùng isHidden để rõ nghĩa hơn
 };
 
 export default function AppLayout() {
-  // 'role' bây giờ đã ĐÚNG, lấy từ app_metadata
-  const { role } = useAuth(); 
+  const { session, role, isLoading } = useAuth();
 
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#FF6B35" />
+      </View>
+    );
+  }
+
+  // Nếu chưa đăng nhập -> Đá về Login
+  if (!session) {
+    return <Redirect href="/(auth)/login" />;
+  }
+
+  const isAdmin = role === 'admin';
+
+  // Định nghĩa cấu hình cho TẤT CẢ các màn hình trong thư mục (app)
+  // Bắt buộc phải liệt kê hết để tránh Expo tự tạo tab rác
   const allTabs: TabConfig[] = [
-    { name: "home", title: "Bàn", icon: Home, condition: true },
-    { name: "order", title: "Order", icon: NotebookText, href: null, condition: true },
-    // Logic này giờ sẽ chạy đúng, 'staff' !== 'admin' -> false
-    { name: "menu", title: "Menu", icon: Utensils, condition: role === 'admin' },
-    { name: "report", title: "Báo cáo", icon: BarChart4, condition: role === 'admin' },
-    { name: "staff", title: "Nhân viên", icon: User, condition: role === 'admin' },
-    { name: "settings", title: "Cài đặt", icon: Settings, condition: true }
+    // 1. Home: Luôn hiện
+    { name: "home", title: "Bàn", icon: Home, isHidden: false },
+    
+    // 2. Order: Luôn ẩn khỏi thanh Tab (chỉ vào bằng code)
+    { name: "order", title: "Order", icon: NotebookText, isHidden: true },
+    
+    // 3. Các Tab Admin: Ẩn nếu không phải admin
+    { name: "menu", title: "Menu", icon: Utensils, isHidden: !isAdmin },
+    { name: "report", title: "Báo cáo", icon: BarChart4, isHidden: !isAdmin },
+    { name: "staff", title: "Nhân viên", icon: User, isHidden: !isAdmin },
+    { name: "settings", title: "Cài đặt", icon: Settings, isHidden: !isAdmin }
   ];
-
-  const visibleTabs = allTabs.filter(tab => tab.condition);
 
   return (
     <Tabs
@@ -35,7 +52,7 @@ export default function AppLayout() {
         tabBarActiveTintColor: '#FF6B35',
       }}
     >
-      {visibleTabs.map(tab => {
+      {allTabs.map(tab => {
         const Icon = tab.icon;
         return (
           <Tabs.Screen
@@ -43,7 +60,9 @@ export default function AppLayout() {
             name={tab.name}
             options={{
               title: tab.title,
-              href: tab.href,
+              // QUAN TRỌNG: href = null sẽ ẩn tab đi nhưng vẫn giữ route tồn tại
+              // href = undefined (mặc định) sẽ hiện tab bình thường
+              href: tab.isHidden ? null : undefined,
               tabBarIcon: ({ color }) => <Icon color={color} />,
             }}
           />
