@@ -1,59 +1,77 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
+// SỬA: Thêm dòng này lên ĐẦU TIÊN
+import 'react-native-url-polyfill/auto';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Stack, router, useRootNavigationState, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import 'react-native-reanimated';
+import { ActivityIndicator, View } from 'react-native';
+// BỎ: 'react-native-url-polyfill/auto' ở đây nếu có
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+import { AuthProvider, useAuth } from '../src/auth/AuthContext';
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+SplashScreen.preventAutoHideAsync();
+const queryClient = new QueryClient();
 
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
+// Hook bảo vệ
+const useAuthProtection = () => {
+  const segments = useSegments();
+  const navigationState = useRootNavigationState();
+  
+  const { session, isLoading } = useAuth(); 
+  const inAuthGroup = segments[0] === '(auth)';
+
+  useEffect(() => {
+    if (isLoading || !navigationState?.key) return; 
+    
+    if (!session && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    }
+    if (session && inAuthGroup) {
+      router.replace('/(app)/home');
+    }
+  }, [session, isLoading, inAuthGroup, navigationState?.key]);
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
+// Layout chính
+function RootLayoutNav() {
+  const [fontsLoaded, fontError] = useFonts({
+    'SVN-Bold': require('../assets/fonts/SVN-Times New Roman Bold.ttf'),
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-  useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+  const { isLoading: isAuthLoading } = useAuth();
+  useAuthProtection(); 
 
   useEffect(() => {
-    if (loaded) {
+    if (fontsLoaded || fontError) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded, fontError]);
 
-  if (!loaded) {
-    return null;
+  if (isAuthLoading || (!fontsLoaded && !fontError)) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#FF6B35" />
+      </View>
+    );
   }
 
-  return <RootLayoutNav />;
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(app)" />
+      <Stack.Screen name="(auth)" />
+    </Stack>
+  );
 }
 
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
+// Bọc mọi thứ trong Provider
+export default function RootLayout() {
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider> 
+        <RootLayoutNav />
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
