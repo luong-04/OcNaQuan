@@ -1,65 +1,112 @@
-// src/api/orderApi.ts
-import { Database } from '../../types/supabase';
 import { supabase } from '../services/supabase';
 
-// Định nghĩa kiểu dữ liệu trả về từ RPC
-export type OrderItem = Database['public']['Tables']['order_items']['Row'];
-export type OrderDetails = Database['public']['Tables']['orders']['Row'] & {
-  order_items: OrderItem[];
-};
-// Kiểu dữ liệu cho hàm RPC mới
-export type OrderItemInput = {
+export interface OrderItemInput {
   menu_item_id_input: number;
   quantity_input: number;
 }
 
-/**
- * (ĐÚNG) Gọi RPC 'get_open_order_for_table'
- * CHỈ LẤY đơn hàng 'open' nếu có, không tự động tạo
- */
-export const fetchOpenOrderForTable = async (tableName: string): Promise<OrderDetails | null> => {
-  const { data, error } = await supabase.rpc('get_open_order_for_table', {
-    table_name_input: tableName,
-  });
-
-  if (error) throw new Error(error.message);
-  return data as unknown as OrderDetails | null; // Sẽ là null nếu không có đơn
-};
-
-/**
- * (ĐÚNG) Tạo một đơn hàng 'open' mới
- */
-export const createOrder = async (tableName: string): Promise<OrderDetails> => {
+// 1. Tạo đơn hàng & Cập nhật bàn -> Có khách
+export const createOrder = async (tableName: string) => {
   const { data, error } = await supabase
     .from('orders')
-    .insert({ table_name: tableName, status: 'open' })
+    .insert({
+      table_name: tableName,
+      status: 'served',
+      total_amount: 0
+    })
     .select()
-    .single(); // .single() để lấy về 1 object
+    .single();
 
-  if (error) throw new Error(error.message);
-  return { ...data, order_items: [] }; // Trả về cấu trúc giống OrderDetails
-}
+  if (error) throw error;
 
-/**
- * (ĐÚNG) Gọi RPC 'upsert_order_items'
- * Gửi toàn bộ giỏ hàng lên 1 lần
- */
-export const upsertOrderItems = async (params: {
-  order_id_input: number;
-  items_input: OrderItemInput[];
-}) => {
-  const { error } = await supabase.rpc('upsert_order_items', params);
-  if (error) throw new Error(error.message);
+  // Update trạng thái bàn
+  await supabase.from('tables').update({ status: 'occupied' } as any).eq('name', tableName);
+
+  return data;
 };
 
-/**
- * (ĐÚNG) Cập nhật trạng thái đơn hàng (ví dụ: 'paid')
- */
-export const updateOrderStatus = async (orderId: number, status: 'paid' | 'open' | 'cancelled') => {
-  const { error } = await supabase
+// 2. Lấy đơn hàng (Kèm items)
+export const fetchOpenOrderForTable = async (tableName: string) => {
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      id,
+      table_name,
+      status,
+      total_amount,
+      order_items (
+        id,
+        menu_item_id,
+        quantity
+      )
+    `)
+    .eq('table_name', tableName)
+    .eq('status', 'served')
+    .order('created_at', { ascending: false }) // Lấy đơn mới nhất
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+};
+
+// 3. Upsert món (Vẫn dùng RPC này vì nó tiện)
+export const upsertOrderItems = async ({ order_id_input, items_input }: { order_id_input: number, items_input: OrderItemInput[] }) => {
+  const { data, error } = await supabase.rpc('upsert_order_items', {
+    order_id_input,
+    items_input
+  });
+  if (error) throw error;
+  return data;
+};
+
+// 4. Thanh toán
+export const updateOrderStatus = async (orderId: number, status: 'paid' | 'cancelled') => {
+  const { data, error } = await supabase
     .from('orders')
     .update({ status })
-    .eq('id', orderId);
+    .eq('id', orderId)
+    .select()
+    .single();
 
-  if (error) throw new Error(error.message);
+  if (error) throw error;
+
+  if (data) {
+    await supabase.from('tables').update({ status: 'empty' } as any).eq('name', data.table_name);
+  }
+  return data;
+};
+
+// 5. Chuyển bàn
+export const moveTable = async (fromTableName: string, toTableName: string) => {
+  // Check bàn đích
+  const { data: targetOrder } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('table_name', toTableName)
+    .eq('status', 'served')
+    .maybeSingle();
+
+  if (targetOrder) throw new Error(`Bàn ${toTableName} đang có khách!`);
+
+  // Lấy đơn bàn cũ
+  const { data: sourceOrder } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('table_name', fromTableName)
+    .eq('status', 'served')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sourceOrder) throw new Error(`Bàn ${fromTableName} không có đơn.`);
+
+  // Update
+  const { error } = await supabase.from('orders').update({ table_name: toTableName }).eq('id', sourceOrder.id);
+  if (error) throw error;
+
+  await supabase.from('tables').update({ status: 'empty' } as any).eq('name', fromTableName);
+  await supabase.from('tables').update({ status: 'occupied' } as any).eq('name', toTableName);
+
+  return true;
 };
