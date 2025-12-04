@@ -232,6 +232,7 @@ export default function MenuScreen() {
       <FlatList
         data={filteredItems}
         keyExtractor={item => item.id.toString()}
+        contentContainerStyle={{ paddingBottom: 100 }}
         renderItem={({ item }) => (
           <View style={styles.menuItem}>
             <View style={styles.itemInfo}>
