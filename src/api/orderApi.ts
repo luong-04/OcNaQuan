@@ -105,3 +105,26 @@ export const moveTable = async (fromTableName: string, toTableName: string) => {
 
   return true;
 };
+// 6. Lấy lịch sử đơn hàng theo ngày (Kèm chi tiết món để in lại)
+export const fetchOrdersHistory = async (date: string) => {
+  const start = `${date}T00:00:00`;
+  const end = `${date}T23:59:59.999`;
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(`
+      id, table_name, status, total_amount, created_at,
+      order_items (
+        quantity,
+        menu_item_id,
+        menu_items ( id, name, price )
+      )
+    `)
+    .eq('status', 'paid') // Chỉ lấy đơn đã thanh toán
+    .gte('created_at', start)
+    .lte('created_at', end)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};

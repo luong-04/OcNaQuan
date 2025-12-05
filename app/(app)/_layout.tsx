@@ -1,6 +1,6 @@
 // File: app/(app)/_layout.tsx
 import { Redirect, Tabs } from 'expo-router';
-import { BarChart4, Home, NotebookText, Settings, User, Utensils } from 'lucide-react-native';
+import { BarChart4, History, Home, NotebookText, Settings, User, Utensils } from 'lucide-react-native';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../../src/auth/AuthContext';
 
@@ -41,6 +41,7 @@ export default function AppLayout() {
     // 3. Các Tab Admin: Ẩn nếu không phải admin
     { name: "menu", title: "Menu", icon: Utensils, isHidden: !isAdmin },
     { name: "report", title: "Báo cáo", icon: BarChart4, isHidden: !isAdmin },
+    { name: "history", title: "Lịch sử", icon: History, isHidden: false },
     { name: "staff", title: "Nhân viên", icon: User, isHidden: !isAdmin },
     { name: "settings", title: "Cài đặt", icon: Settings, isHidden: !isAdmin }
   ];
