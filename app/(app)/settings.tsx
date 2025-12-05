@@ -1,14 +1,12 @@
-// File: app/(app)/settings.tsx
 import { Picker } from '@react-native-picker/picker';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Button, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Button, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 import { useAuth } from '../../src/auth/AuthContext';
 import { supabase } from '../../src/services/supabase';
 import { SettingsState, useSettingsStore } from '../../src/stores/settingsStore';
 
-// Danh sách ngân hàng
 const BANK_LIST = [
   { label: 'MB Bank (Quân Đội)', value: 'MB' },
   { label: 'Vietcombank', value: 'VCB' },
@@ -20,15 +18,9 @@ const BANK_LIST = [
   { label: 'ACB', value: 'ACB' },
   { label: 'Sacombank', value: 'STB' },
   { label: 'TPBank', value: 'TPB' },
-  { label: 'HDBank', value: 'HDB' },
-  { label: 'VIB', value: 'VIB' },
 ];
 
-type CollapsibleSectionProps = {
-  title: string;
-  children: React.ReactNode;
-  startOpen?: boolean;
-};
+type CollapsibleSectionProps = { title: string; children: React.ReactNode; startOpen?: boolean };
 
 const CollapsibleSection = ({ title, children, startOpen = false }: CollapsibleSectionProps) => {
   const [isOpen, setIsOpen] = useState(startOpen);
@@ -38,12 +30,7 @@ const CollapsibleSection = ({ title, children, startOpen = false }: CollapsibleS
         <Text style={styles.sectionTitle}>{title}</Text>
         {isOpen ? <ChevronDown color="#555" /> : <ChevronRight color="#555" />}
       </Pressable>
-      
-      {isOpen && (
-        <View style={styles.collapsibleContent}>
-          {children}
-        </View>
-      )}
+      {isOpen && <View style={styles.collapsibleContent}>{children}</View>}
     </View>
   );
 };
@@ -53,17 +40,15 @@ export default function SettingsScreen() {
   const { role } = useAuth(); 
 
   const {
-    shopName, address, phone,
-    thankYouMessage, 
-    bankId, accountNo,
+    shopName, address, phone, thankYouMessage, bankId, accountNo,
+    printer1, printer2, kitchenPrinterId, paymentPrinterId,
     isVatEnabled, vatPercent,
     setSettings,
   } = useSettingsStore(useShallow((state) => state));
 
   const handleLogout = async () => {
     setIsLoading(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) Alert.alert('Lỗi', error.message);
+    await supabase.auth.signOut();
     setIsLoading(false);
   };
 
@@ -72,56 +57,57 @@ export default function SettingsScreen() {
   };
 
   return (
-    <ScrollView 
-      style={styles.container}
-      contentContainerStyle={{ paddingBottom: 100 }}
-    >
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
       <Text style={styles.header}>Cài Đặt</Text>
 
-      {/* CHỈ ADMIN MỚI THẤY */}
       {role === 'admin' && (
         <>
           <CollapsibleSection title="Thông tin quán & Hóa đơn" startOpen={true}>
             <Text style={styles.label}>Tên cửa hàng</Text>
             <TextInput style={styles.input} value={shopName} onChangeText={(val) => updateSetting('shopName', val)} />
-            
             <Text style={styles.label}>Địa chỉ</Text>
             <TextInput style={styles.input} value={address} onChangeText={(val) => updateSetting('address', val)} />
-            
             <Text style={styles.label}>Số điện thoại</Text>
             <TextInput style={styles.input} value={phone} onChangeText={(val) => updateSetting('phone', val)} keyboardType="phone-pad" />
-            
             <Text style={styles.label}>Lời cảm ơn</Text>
             <TextInput style={styles.input} value={thankYouMessage} onChangeText={(val) => updateSetting('thankYouMessage', val)} />
           </CollapsibleSection>
 
-          <CollapsibleSection title="Thanh toán QR (VietQR)" startOpen={true}>
-            <Text style={styles.label}>Chọn Ngân hàng</Text>
+          <CollapsibleSection title="Cài đặt Máy in">
+            <Text style={styles.label}>IP Máy in 1 (Chính)</Text>
+            <TextInput style={styles.input} value={printer1} onChangeText={(val) => updateSetting('printer1', val)} placeholder="VD: 192.168.1.200" keyboardType="numeric" />
+            <Text style={styles.label}>IP Máy in 2 (Phụ)</Text>
+            <TextInput style={styles.input} value={printer2} onChangeText={(val) => updateSetting('printer2', val)} placeholder="VD: 192.168.1.201" keyboardType="numeric" />
+            
+            <Text style={styles.label}>Máy in BẾP dùng:</Text>
             <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={bankId}
-                onValueChange={(itemValue) => updateSetting('bankId', itemValue)}
-              >
-                {BANK_LIST.map(bank => (
-                  <Picker.Item key={bank.value} label={bank.label} value={bank.value} />
-                ))}
+              <Picker selectedValue={kitchenPrinterId} onValueChange={(val) => updateSetting('kitchenPrinterId', val)}>
+                <Picker.Item label="Không in" value={null} />
+                <Picker.Item label="Máy in 1" value="printer1" />
+                <Picker.Item label="Máy in 2" value="printer2" />
               </Picker>
             </View>
 
-            <Text style={styles.label}>Số tài khoản nhận tiền</Text>
-            <TextInput 
-              style={styles.input} 
-              value={accountNo} 
-              onChangeText={(val) => updateSetting('accountNo', val)}
-              placeholder="Nhập số tài khoản..."
-              keyboardType="numeric"
-            />
-            <Text style={{fontSize: 12, color: '#888', fontStyle: 'italic'}}>
-              *Mã QR sẽ tự động được tạo trên hóa đơn.
-            </Text>
+            <Text style={styles.label}>Máy in HÓA ĐƠN dùng:</Text>
+            <View style={styles.pickerContainer}>
+              <Picker selectedValue={paymentPrinterId} onValueChange={(val) => updateSetting('paymentPrinterId', val)}>
+                <Picker.Item label="Không in" value={null} />
+                <Picker.Item label="Máy in 1" value="printer1" />
+                <Picker.Item label="Máy in 2" value="printer2" />
+              </Picker>
+            </View>
           </CollapsibleSection>
 
-          {/* ĐÃ BỎ PHẦN CÀI ĐẶT MÁY IN Ở ĐÂY VÌ KHÔNG CẦN THIẾT NỮA */}
+          <CollapsibleSection title="Thanh toán QR">
+            <Text style={styles.label}>Ngân hàng</Text>
+            <View style={styles.pickerContainer}>
+              <Picker selectedValue={bankId} onValueChange={(val) => updateSetting('bankId', val)}>
+                {BANK_LIST.map(b => <Picker.Item key={b.value} label={b.label} value={b.value} />)}
+              </Picker>
+            </View>
+            <Text style={styles.label}>Số tài khoản</Text>
+            <TextInput style={styles.input} value={accountNo} onChangeText={(val) => updateSetting('accountNo', val)} keyboardType="numeric" placeholder="Nhập số tài khoản..." />
+          </CollapsibleSection>
 
           <CollapsibleSection title="Cài đặt VAT">
             <View style={styles.switchRow}>
@@ -139,9 +125,6 @@ export default function SettingsScreen() {
       )}
 
       <View style={styles.logoutSection}>
-        <Text style={{textAlign: 'center', color: '#888', marginBottom: 10}}>
-           Tài khoản: {role === 'admin' ? 'Quản lý (Admin)' : 'Nhân viên (Staff)'}
-        </Text>
         <Button title={isLoading ? 'Đang đăng xuất...' : 'Đăng Xuất'} onPress={handleLogout} color="#e74c3c" disabled={isLoading} />
       </View>
     </ScrollView>

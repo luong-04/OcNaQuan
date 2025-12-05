@@ -1,4 +1,3 @@
-// src/stores/settingsStore.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -11,14 +10,15 @@ export interface SettingsState {
   phone: string;
   thankYouMessage: string;
   
-  // SỬA: Thay qrCodeData bằng 2 trường này
-  bankId: string;    // Ví dụ: MB, VCB
-  accountNo: string; // Ví dụ: 0901234567
+  bankId: string;
+  accountNo: string;
 
-  printer1: string;
+  // === Cấu hình máy in IP ===
+  printer1: string; 
   printer2: string;
   kitchenPrinterId: PrinterId;
   paymentPrinterId: PrinterId;
+
   isVatEnabled: boolean;
   vatPercent: number;
   
@@ -32,23 +32,19 @@ export const useSettingsStore = create<SettingsState>()(
       address: '123 Đường ABC, Quận 1, TP. HCM',
       phone: '0901 234 567',
       thankYouMessage: 'Cảm ơn quý khách. Hẹn gặp lại!',
-      
-      // Giá trị mặc định
       bankId: 'MB', 
       accountNo: '',
 
-      printer1: '',
+      printer1: '192.168.1.200', // Mặc định
       printer2: '',
-      kitchenPrinterId: null,
-      paymentPrinterId: null,
+      kitchenPrinterId: 'printer1',
+      paymentPrinterId: 'printer1',
+
       isVatEnabled: true,
       vatPercent: 10,
       
       setSettings: (settings) =>
-        set((state) => ({
-          ...state,
-          ...settings,
-        })),
+        set((state) => ({ ...state, ...settings })),
     }),
     {
       name: 'ocna-settings-storage',

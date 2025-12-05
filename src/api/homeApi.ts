@@ -1,30 +1,28 @@
-// D:/OcNaAppV2/src/api/homeApi.ts
+// File: src/api/homeApi.ts
 import { supabase } from '../services/supabase';
 
 /**
- * Lấy danh sách bàn ĐANG HOẠT ĐỘNG (có đơn 'open') từ Supabase.
+ * Lấy danh sách bàn ĐANG HOẠT ĐỘNG
  */
 export const fetchActiveTables = async (): Promise<string[]> => {
   const { data, error } = await supabase
     .from('orders')
     .select('table_name')
-    .eq('status', 'open');
+    .eq('status', 'served'); // SỬA: 'open' -> 'served' cho khớp với orderApi
     
   if (error) throw new Error(error.message);
 
-  // Dùng Set để loại bỏ các tên bàn trùng lặp
   const activeTableSet = new Set(data.map(order => order.table_name));
   return Array.from(activeTableSet);
 };
 
 /**
- * Lấy danh sách bàn CHÍNH (master list) từ Supabase.
+ * Lấy danh sách bàn CHÍNH
  */
 export const loadTables = async (): Promise<string[]> => {
   const { data, error } = await supabase
     .from('tables')
     .select('name');
-    // (SỬA) Bỏ .order('name') ở đây để sort thủ công
 
   if (error) {
     console.error('Lỗi loadTables:', error);
@@ -33,13 +31,10 @@ export const loadTables = async (): Promise<string[]> => {
 
   const names = data.map(table => table.name);
 
-  // (SỬA) Thêm Sắp xếp Tự nhiên (Natural Sort)
+  // Sắp xếp tự nhiên (Bàn 1 -> Bàn 2 -> ... -> Bàn 10)
   const naturalSort = (a: string, b: string) => {
-    // Trích xuất số từ tên bàn (ví dụ: 'Bàn 10' -> 10)
-    // Nếu không phải số (VD: 'VIP 1'), nó sẽ dùng 0
     const numA = parseInt(a.replace(/\D/g, ''), 10) || 0;
     const numB = parseInt(b.replace(/\D/g, ''), 10) || 0;
-    
     return numA - numB;
   };
   
@@ -47,33 +42,44 @@ export const loadTables = async (): Promise<string[]> => {
 };
 
 /**
- * Thêm một bàn mới vào Supabase.
+ * Thêm bàn mới (Mặc định status là 'empty')
  */
 export const addTable = async (tableName: string): Promise<string> => {
   const { data, error } = await supabase
     .from('tables')
-    .insert({ name: tableName })
+    .insert({ name: tableName, status: 'empty' }) // Thêm status mặc định cho chắc
     .select()
     .single(); 
 
   if (error) {
-    console.error('Lỗi addTable:', error);
+    // Check lỗi trùng tên
+    if (error.code === '23505') throw new Error('Tên bàn này đã tồn tại!');
     throw new Error(error.message);
   }
   return data.name;
 };
 
 /**
- * Xóa một bàn khỏi Supabase.
+ * Xóa bàn
  */
 export const deleteTable = async (tableName: string): Promise<string> => {
+  // Kiểm tra xem bàn có đang có khách không trước khi xóa (bảo vệ 2 lớp)
+  const { data: table } = await supabase
+    .from('tables')
+    .select('status')
+    .eq('name', tableName)
+    .single();
+
+  if (table && table.status === 'occupied') {
+    throw new Error('Bàn đang có khách, không thể xóa!');
+  }
+
   const { error } = await supabase
     .from('tables')
     .delete()
     .eq('name', tableName);
 
   if (error) {
-    console.error('Lỗi deleteTable:', error);
     throw new Error(error.message);
   }
   return tableName;

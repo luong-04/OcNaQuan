@@ -1,14 +1,16 @@
 // File: app/(app)/home.tsx
-import { Stack, router, useFocusEffect } from 'expo-router'; // THÊM useFocusEffect
-import { Armchair, ArrowRightLeft, LogOut } from 'lucide-react-native';
-import React, { useCallback, useState } from 'react'; // THÊM useCallback
+import { Stack, router, useFocusEffect } from 'expo-router';
+import { Armchair, ArrowRightLeft, LogOut, Plus, Trash2, X } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator, Alert, FlatList,
   Modal,
   Image as RNImage,
   StyleSheet, Text,
+  TextInput,
   TouchableOpacity, View
 } from 'react-native';
+import { addTable, deleteTable } from '../../src/api/homeApi'; // Import API mới
 import { moveTable } from '../../src/api/orderApi';
 import { useAuth } from '../../src/auth/AuthContext';
 import { supabase } from '../../src/services/supabase';
@@ -24,32 +26,34 @@ export default function HomeScreen() {
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // State cho chức năng Chuyển bàn
+  // Modal Chuyển bàn
   const [moveModalVisible, setMoveModalVisible] = useState(false);
   const [selectedSourceTable, setSelectedSourceTable] = useState<Table | null>(null);
 
+  // Modal Thêm bàn
+  const [addModalVisible, setAddModalVisible] = useState(false);
+  const [newTableName, setNewTableName] = useState('');
+
+  // Modal Menu (Xóa/Chuyển)
+  const [menuModalVisible, setMenuModalVisible] = useState(false);
+  const [selectedMenuTable, setSelectedMenuTable] = useState<Table | null>(null);
+
   const fetchTables = async () => {
     try {
-      // setLoading(true); // Tắt loading để tránh nháy màn hình khi focus lại
       const { data, error } = await supabase
         .from('tables')
         .select('*')
         .order('id', { ascending: true });
 
-      if (error || !data || data.length === 0) {
-        setTables([
-          { id: 1, name: 'Bàn 1', status: 'empty' },
-          { id: 2, name: 'Bàn 2', status: 'occupied' },
-          { id: 3, name: 'Bàn 3', status: 'empty' },
-          { id: 4, name: 'Bàn 4', status: 'empty' },
-          { id: 5, name: 'Bàn 5', status: 'occupied' },
-          { id: 6, name: 'Bàn 6', status: 'empty' },
-        ]);
-      } else {
-        const mappedTables: Table[] = data.map((item: any) => ({
+      if (data) {
+        // Sort tự nhiên (Bàn 1, Bàn 2, ..., Bàn 10)
+        const sortedData = data.sort((a, b) => {
+           return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+        });
+
+        const mappedTables: Table[] = sortedData.map((item: any) => ({
           id: item.id,
           name: item.name,
-          // Map status nếu DB chưa có cột này
           status: item.status === 'occupied' ? 'occupied' : 'empty', 
         }));
         setTables(mappedTables); 
@@ -61,7 +65,6 @@ export default function HomeScreen() {
     }
   };
 
-  // SỬA: Dùng useFocusEffect thay vì router.addListener
   useFocusEffect(
     useCallback(() => {
       fetchTables();
@@ -71,11 +74,7 @@ export default function HomeScreen() {
   const handleLogout = async () => {
     Alert.alert('Đăng xuất', 'Bạn có chắc muốn đăng xuất không?', [
       { text: 'Hủy', style: 'cancel' },
-      { 
-        text: 'Đồng ý', 
-        style: 'destructive',
-        onPress: async () => await supabase.auth.signOut()
-      }
+      { text: 'Đồng ý', style: 'destructive', onPress: async () => await supabase.auth.signOut() }
     ]);
   };
 
@@ -86,15 +85,70 @@ export default function HomeScreen() {
     });
   };
 
+  // --- LOGIC THÊM BÀN ---
+  const handleAddTable = async () => {
+    if (!newTableName.trim()) return;
+    try {
+      setLoading(true);
+      await addTable(newTableName); // Gọi API
+      setAddModalVisible(false);
+      setNewTableName('');
+      fetchTables();
+      Alert.alert("Thành công", "Đã thêm bàn mới");
+    } catch (error: any) {
+      Alert.alert("Lỗi", error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- LOGIC MENU (CHUYỂN/XÓA) ---
   const handleLongPressTable = (table: Table) => {
-    if (table.status === 'empty') return;
-    setSelectedSourceTable(table);
+    setSelectedMenuTable(table);
+    setMenuModalVisible(true);
+  };
+
+  const onSelectMove = () => {
+    if (selectedMenuTable?.status === 'empty') {
+      Alert.alert("Thông báo", "Bàn này đang trống, không cần chuyển.");
+      return;
+    }
+    setMenuModalVisible(false);
+    setSelectedSourceTable(selectedMenuTable);
     setMoveModalVisible(true);
   };
 
+  const onSelectDelete = () => {
+    if (!selectedMenuTable) return;
+    if (role !== 'admin') {
+      Alert.alert("Quyền hạn", "Chỉ Admin mới được xóa bàn.");
+      return;
+    }
+    if (selectedMenuTable.status === 'occupied') {
+      Alert.alert("Lỗi", "Bàn đang có khách, không thể xóa!");
+      return;
+    }
+
+    Alert.alert("Xóa bàn", `Bạn có chắc muốn xóa ${selectedMenuTable.name}?`, [
+      { text: "Hủy", style: "cancel" },
+      { text: "Xóa", style: "destructive", onPress: async () => {
+          try {
+            setMenuModalVisible(false);
+            setLoading(true);
+            await deleteTable(selectedMenuTable.name); // Gọi API
+            fetchTables();
+          } catch(e: any) {
+            Alert.alert("Lỗi", e.message);
+          } finally {
+            setLoading(false);
+          }
+      }}
+    ]);
+  };
+
+  // --- LOGIC CHUYỂN BÀN ---
   const confirmMoveTable = async (targetTable: Table) => {
     if (!selectedSourceTable) return;
-    
     try {
       setLoading(true);
       await moveTable(selectedSourceTable.name, targetTable.name);
@@ -147,9 +201,17 @@ export default function HomeScreen() {
             </View>
           ),
           headerRight: () => (
-            <TouchableOpacity onPress={handleLogout} style={{ marginRight: 10 }}>
-              <LogOut color="#333" size={24} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              {/* Nút Thêm Bàn (Chỉ Admin) */}
+              {role === 'admin' && (
+                <TouchableOpacity onPress={() => setAddModalVisible(true)} style={{ marginRight: 15 }}>
+                  <Plus color="#27ae60" size={28} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={handleLogout} style={{ marginRight: 10 }}>
+                <LogOut color="#333" size={24} />
+              </TouchableOpacity>
+            </View>
           ),
         }} 
       />
@@ -167,41 +229,72 @@ export default function HomeScreen() {
         />
       )}
 
-      <Modal
-        visible={moveModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setMoveModalVisible(false)}
-      >
+      {/* MODAL THÊM BÀN */}
+      <Modal visible={addModalVisible} transparent animationType="fade" onRequestClose={() => setAddModalVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalView}>
-            <Text style={styles.modalTitle}>
-              Chuyển {selectedSourceTable?.name} đến...
-            </Text>
-            <Text style={styles.modalSubtitle}>Chọn một bàn trống:</Text>
-            
-            <View style={styles.targetList}>
-              {tables.filter(t => t.status === 'empty').map(table => (
-                <TouchableOpacity 
-                  key={table.id} 
-                  style={styles.targetBtn}
-                  onPress={() => confirmMoveTable(table)}
-                >
-                  <ArrowRightLeft size={20} color="#fff" style={{marginRight: 8}} />
-                  <Text style={styles.targetBtnText}>{table.name}</Text>
-                </TouchableOpacity>
-              ))}
-              
-              {tables.filter(t => t.status === 'empty').length === 0 && (
-                <Text style={{color: '#888', fontStyle: 'italic'}}>Không có bàn trống nào!</Text>
-              )}
+            <Text style={styles.modalTitle}>Thêm Bàn Mới</Text>
+            <TextInput 
+              style={styles.input} 
+              placeholder="Tên bàn (VD: Mang Về 1)" 
+              value={newTableName}
+              onChangeText={setNewTableName}
+            />
+            <View style={{flexDirection: 'row', justifyContent: 'flex-end', width: '100%', gap: 10}}>
+              <TouchableOpacity style={styles.btnCancel} onPress={() => setAddModalVisible(false)}>
+                <Text style={{color: '#555'}}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnConfirm} onPress={handleAddTable}>
+                <Text style={{color: '#fff', fontWeight: 'bold'}}>Thêm</Text>
+              </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
 
-            <TouchableOpacity 
-              style={styles.closeBtn}
-              onPress={() => setMoveModalVisible(false)}
-            >
-              <Text style={styles.closeBtnText}>Hủy bỏ</Text>
+      {/* MODAL MENU (CHUYỂN / XÓA) */}
+      <Modal visible={menuModalVisible} transparent animationType="fade" onRequestClose={() => setMenuModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalView}>
+            <Text style={styles.modalTitle}>{selectedMenuTable?.name}</Text>
+            
+            <TouchableOpacity style={styles.menuOption} onPress={onSelectMove}>
+              <ArrowRightLeft size={20} color="#3498db" />
+              <Text style={styles.menuText}>Chuyển bàn</Text>
+            </TouchableOpacity>
+
+            {role === 'admin' && (
+              <TouchableOpacity style={[styles.menuOption, {borderBottomWidth: 0}]} onPress={onSelectDelete}>
+                <Trash2 size={20} color="#e74c3c" />
+                <Text style={[styles.menuText, {color: '#e74c3c'}]}>Xóa bàn</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity style={styles.closeIcon} onPress={() => setMenuModalVisible(false)}>
+              <X size={20} color="#999"/>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* MODAL CHỌN BÀN ĐÍCH (CHUYỂN BÀN) */}
+      <Modal visible={moveModalVisible} transparent animationType="slide" onRequestClose={() => setMoveModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalView, {maxHeight: '80%'}]}>
+            <Text style={styles.modalTitle}>Chuyển đến...</Text>
+            <FlatList
+              data={tables.filter(t => t.status === 'empty' && t.id !== selectedSourceTable?.id)}
+              keyExtractor={item => item.id.toString()}
+              numColumns={2}
+              style={{width: '100%'}}
+              renderItem={({item}) => (
+                <TouchableOpacity style={styles.targetBtn} onPress={() => confirmMoveTable(item)}>
+                  <Text style={styles.targetBtnText}>{item.name}</Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity style={styles.btnCancel} onPress={() => setMoveModalVisible(false)}>
+              <Text>Hủy bỏ</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -214,31 +307,27 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   listContent: { padding: 16 },
   row: { justifyContent: 'space-between', marginBottom: 16 },
-  card: {
-    width: '48%',
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 3, 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardEmpty: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee' },
-  cardOccupied: { backgroundColor: '#FF6B35' },
+  card: { width: '48%', padding: 20, borderRadius: 16, alignItems: 'center', justifyContent: 'center', elevation: 3, backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee' },
+  cardOccupied: { backgroundColor: '#FF6B35', borderColor: '#FF6B35' },
+  cardEmpty: { backgroundColor: '#fff' },
   cardText: { marginTop: 8, fontSize: 18, fontFamily: 'SVN-Bold', color: '#333' },
   statusText: { marginTop: 4, fontSize: 14, color: '#888' },
   textOccupied: { color: '#fff' },
   
+  // Modal Styles
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalView: { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '100%', maxHeight: '80%', alignItems: 'center', elevation: 5 },
-  modalTitle: { fontSize: 22, fontWeight: 'bold', color: '#FF6B35', marginBottom: 8 },
-  modalSubtitle: { fontSize: 16, color: '#555', marginBottom: 20 },
-  targetList: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 20, gap: 10 },
-  targetBtn: { flexDirection: 'row', backgroundColor: '#27ae60', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, alignItems: 'center', minWidth: '40%', justifyContent: 'center', marginBottom: 10 },
-  targetBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  closeBtn: { padding: 12 },
-  closeBtnText: { color: '#888', fontSize: 16, fontWeight: '600' }
+  modalView: { backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '90%', alignItems: 'center', elevation: 5 },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 15, color: '#333' },
+  input: { width: '100%', backgroundColor: '#f0f0f0', padding: 12, borderRadius: 8, marginBottom: 20 },
+  btnCancel: { padding: 10 },
+  btnConfirm: { backgroundColor: '#27ae60', padding: 10, borderRadius: 8, paddingHorizontal: 20 },
+  
+  // Menu Options
+  menuOption: { flexDirection: 'row', alignItems: 'center', width: '100%', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  menuText: { fontSize: 16, marginLeft: 15, fontWeight: '500' },
+  closeIcon: { position: 'absolute', top: 10, right: 10, padding: 5 },
+
+  // Target List
+  targetBtn: { backgroundColor: '#27ae60', padding: 12, borderRadius: 8, margin: 5, flex: 1, alignItems: 'center' },
+  targetBtnText: { color: '#fff', fontWeight: 'bold' }
 });
