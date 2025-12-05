@@ -41,7 +41,7 @@ export default function AppLayout() {
     // 3. Các Tab Admin: Ẩn nếu không phải admin
     { name: "menu", title: "Menu", icon: Utensils, isHidden: !isAdmin },
     { name: "report", title: "Báo cáo", icon: BarChart4, isHidden: !isAdmin },
-    { name: "history", title: "Lịch sử", icon: History, isHidden: false },
+    { name: "history", title: "Lịch sử", icon: History, isHidden: !isAdmin },
     { name: "staff", title: "Nhân viên", icon: User, isHidden: !isAdmin },
     { name: "settings", title: "Cài đặt", icon: Settings, isHidden: !isAdmin }
   ];
