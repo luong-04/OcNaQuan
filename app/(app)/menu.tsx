@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: { fontSize: 26, fontWeight: 'bold', color: '#FF6B35', textAlign: 'center', marginBottom: 20, fontFamily: 'SVN-Bold' },
   btn: { padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 10 },
-  btnAddCategory: { backgroundColor: '#3498db' },
+  btnAddCategory: { backgroundColor: '#FF6B35' },
   btnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   categoryList: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 },
   categoryBtn: {

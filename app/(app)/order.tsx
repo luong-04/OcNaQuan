@@ -226,9 +226,52 @@ export default function OrderScreen() {
         </ScrollView>
       )}
       <View style={styles.footer}>
-        <TouchableOpacity style={[styles.printBtn, { backgroundColor: '#f39c12', flex: 0.8 }]} onPress={handlePreview}><View style={{flexDirection: 'row', justifyContent: 'center'}}><Eye size={20} color="#fff" style={{marginRight:5}}/><Text style={styles.printText}>Xem</Text></View></TouchableOpacity>
-        <TouchableOpacity style={styles.printBtn} onPress={handlePrintKitchen} disabled={upsertItemsMutation.isPending}><Text style={styles.printText}>In Bếp</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.payBtn} onPress={handlePayment} disabled={updateStatusMutation.isPending}><Text style={styles.payText}>Thanh Toán</Text></TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.printBtn, { backgroundColor: '#f39c12', flex: 0.7 }]} // Giảm flex nút Xem xuống chút để nhường chỗ
+          onPress={handlePreview}
+        >
+          <View style={{flexDirection: 'row', justifyContent: 'center', alignItems: 'center'}}>
+            <Eye size={18} color="#fff" style={{marginRight:4}}/>
+            <Text 
+              style={styles.printText} 
+              numberOfLines={1} 
+              adjustsFontSizeToFit 
+              minimumFontScale={0.8}
+            >
+              Xem
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+          style={styles.printBtn} 
+          onPress={handlePrintKitchen} 
+          disabled={upsertItemsMutation.isPending}
+        >
+          <Text 
+            style={styles.printText} 
+            numberOfLines={1} 
+            adjustsFontSizeToFit 
+            minimumFontScale={0.8}
+          >
+            In Bếp
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.payBtn} 
+          onPress={handlePayment} 
+          disabled={updateStatusMutation.isPending}
+        >
+          <Text 
+            style={styles.payText} 
+            numberOfLines={1} 
+            adjustsFontSizeToFit 
+            minimumFontScale={0.8}
+          >
+            Thanh Toán
+          </Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
