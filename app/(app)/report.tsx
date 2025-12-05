@@ -1,118 +1,134 @@
-// app/(app)/report.tsx
-import RNDateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+// File: app/(app)/report.tsx
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
-import React, { useState } from 'react';
-import { ActivityIndicator, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { fetchReport } from '../../src/api/reportApi';
-
-type ShowPicker = 'start' | 'end' | null;
+import { Calendar } from 'lucide-react-native';
+import React, { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { fetchSalesReport } from '../../src/api/reportApi';
 
 export default function ReportScreen() {
   const [startDate, setStartDate] = useState(new Date());
   const [endDate, setEndDate] = useState(new Date());
-  const [showPicker, setShowPicker] = useState<ShowPicker>(null);
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const { data: report, isLoading } = useQuery({
-    // Chạy lại query khi 'startDate' hoặc 'endDate' thay đổi
-    queryKey: ['report', startDate, endDate], 
-    queryFn: () => fetchReport(startDate, endDate),
+  // Format YYYY-MM-DD
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ['salesReport', startDateStr, endDateStr],
+    queryFn: () => fetchSalesReport(startDateStr, endDateStr),
   });
 
-  const onChangeDate = (event: DateTimePickerEvent, selectedDate?: Date) => {
-    setShowPicker(null); // Ẩn picker
-    if (event.type === 'set' && selectedDate) {
-      if (showPicker === 'start') {
-        setStartDate(selectedDate);
-      } else if (showPicker === 'end') {
-        setEndDate(selectedDate);
-      }
-    }
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
+
+  const onStartChange = (event: any, selectedDate?: Date) => {
+    setShowStartPicker(Platform.OS === 'ios');
+    if (selectedDate) setStartDate(selectedDate);
   };
 
-  // Helper format ngày
-  const formatDate = (date: Date) => date.toLocaleDateString('vi-VN');
+  const onEndChange = (event: any, selectedDate?: Date) => {
+    setShowEndPicker(Platform.OS === 'ios');
+    if (selectedDate) setEndDate(selectedDate);
+  };
+
+  const f = (num: number) => num.toLocaleString('vi-VN');
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Báo cáo doanh thu</Text>
-
-      <View style={styles.dateRow}>
-        <TouchableOpacity style={styles.datePickerBtn} onPress={() => setShowPicker('start')}>
-          <Text style={styles.pickerLabel}>Từ ngày</Text>
-          <Text style={styles.dateText}>{formatDate(startDate)}</Text>
+    <View style={styles.container}>
+      <Text style={styles.title}>Báo Cáo Doanh Thu</Text>
+      
+      {/* Bộ lọc ngày */}
+      <View style={styles.filterContainer}>
+        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowStartPicker(true)}>
+          <Text style={styles.dateLabel}>Từ ngày</Text>
+          <View style={styles.dateValueBox}>
+            <Calendar size={16} color="#fff" />
+            <Text style={styles.dateText}>{startDate.toLocaleDateString('vi-VN')}</Text>
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.datePickerBtn} onPress={() => setShowPicker('end')}>
-          <Text style={styles.pickerLabel}>Đến ngày</Text>
-          <Text style={styles.dateText}>{formatDate(endDate)}</Text>
+        <View style={styles.arrowLine} />
+        <TouchableOpacity style={styles.dateBtn} onPress={() => setShowEndPicker(true)}>
+          <Text style={styles.dateLabel}>Đến ngày</Text>
+          <View style={styles.dateValueBox}>
+            <Calendar size={16} color="#fff" />
+            <Text style={styles.dateText}>{endDate.toLocaleDateString('vi-VN')}</Text>
+          </View>
         </TouchableOpacity>
       </View>
 
-      {/* Hiển thị Lịch (Date Picker) */}
-      {showPicker && (
-        <RNDateTimePicker
-          value={showPicker === 'start' ? startDate : endDate}
-          mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={onChangeDate}
-        />
-      )}
+      {showStartPicker && <DateTimePicker value={startDate} mode="date" display="default" onChange={onStartChange} />}
+      {showEndPicker && <DateTimePicker value={endDate} mode="date" display="default" onChange={onEndChange} />}
 
-      {isLoading ? (
-        <ActivityIndicator size="large" color="#FF6B35" style={{ marginVertical: 40 }} />
-      ) : (
-        <>
-          <View style={styles.card}>
-            <Text style={styles.label}>Tổng doanh thu</Text>
-            <Text style={styles.amount}>
-              {(report?.total_revenue || 0).toLocaleString()}đ
-            </Text>
-          </View>
-
-          <Text style={styles.subtitle}>Top 10 món bán chạy</Text>
-          {!report?.top_items || report.top_items.length === 0 ? (
-            <Text style={styles.noData}>Chưa có dữ liệu</Text>
-          ) : (
-            report.top_items.map((item, i) => (
-              <View key={i} style={styles.topItem}>
-                <Text style={styles.rank}>#{i + 1}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <Text style={styles.revenue}>
-                    Doanh thu: {item.total_revenue.toLocaleString()}đ (SL: {item.total_qty})
-                  </Text>
-                </View>
+      <ScrollView 
+        contentContainerStyle={{ paddingBottom: 100 }} 
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#FF6B35']} />}
+      >
+        {isLoading && !refreshing ? (
+          <ActivityIndicator size="large" color="#FF6B35" style={{ marginTop: 50 }} />
+        ) : (
+          <>
+            {/* Tổng quan */}
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryLabel}>Tổng doanh thu</Text>
+              <Text style={styles.summaryValue}>{f(data?.totalRevenue || 0)}đ</Text>
+              <View style={styles.divider} />
+              <View style={styles.row}>
+                <Text style={styles.subLabel}>Tổng đơn: {data?.totalOrders || 0}</Text>
+                <Text style={styles.subLabel}>Đã bán: {data?.totalItems || 0} món</Text>
               </View>
-            ))
-          )}
-        </>
-      )}
-    </ScrollView>
+            </View>
+
+            {/* Danh sách Top món (Dùng map thay vì FlatList để không bị lỗi cuộn) */}
+            <Text style={styles.sectionTitle}>Top Món Bán Chạy</Text>
+            <View style={{ paddingHorizontal: 16 }}>
+              {data?.topItems && data.topItems.length > 0 ? (
+                data.topItems.map((item, index) => (
+                  <View key={index} style={styles.topItem}>
+                    <View style={styles.rankBadge}>
+                      <Text style={styles.rankText}>{index + 1}</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
+                      <Text style={styles.topName}>{item.menu_items?.name || 'Món đã xóa'}</Text>
+                      <Text style={styles.topQty}>Đã bán: {item.total_quantity}</Text>
+                    </View>
+                    <Text style={styles.topRevenue}>{f(item.total_revenue)}đ</Text>
+                  </View>
+                ))
+              ) : (
+                <Text style={styles.emptyText}>Chưa có dữ liệu bán hàng</Text>
+              )}
+            </View>
+          </>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9f9f9', padding: 16 },
-  title: { fontSize: 26, fontWeight: 'bold', color: '#FF6B35', textAlign: 'center', marginBottom: 20, fontFamily: 'SVN-Bold' },
-  dateRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 20 },
-  datePickerBtn: {
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    elevation: 3,
-    alignItems: 'center',
-    width: '45%',
-  },
-  pickerLabel: { fontSize: 14, color: '#666', fontFamily: 'SVN-Bold' },
-  dateText: { fontSize: 18, fontWeight: '600', color: '#333', marginTop: 4 },
-  card: { backgroundColor: '#fff', padding: 20, borderRadius: 16, marginBottom: 20, elevation: 3, alignItems: 'center' },
-  label: { fontSize: 16, color: '#666', fontFamily: 'SVN-Bold' },
-  amount: { fontSize: 28, fontWeight: 'bold', color: '#FF6B35', marginTop: 8, fontFamily: 'SVN-Bold' },
-  subtitle: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 12, fontFamily: 'SVN-Bold' },
-  noData: { textAlign: 'center', color: '#999', fontStyle: 'italic', marginVertical: 20 },
-  topItem: { flexDirection: 'row', backgroundColor: '#fff', padding: 14, borderRadius: 12, marginBottom: 8, elevation: 2 },
-  rank: { fontSize: 18, fontWeight: 'bold', color: '#FF6B35', marginRight: 12, width: 40, fontFamily: 'SVN-Bold' },
-  itemName: { fontSize: 16, fontWeight: '600', color: '#333', fontFamily: 'SVN-Bold' },
-  revenue: { fontSize: 14, fontWeight: 'bold', color: '#27ae60', fontFamily: 'SVN-Bold' },
+  container: { flex: 1, backgroundColor: '#f5f5f5', paddingTop: 50 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#FF6B35', textAlign: 'center', marginBottom: 15, fontFamily: 'SVN-Bold' },
+  filterContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 },
+  dateBtn: { flex: 1 }, dateLabel: { fontSize: 12, color: '#888', marginBottom: 4, textAlign: 'center' }, dateValueBox: { flexDirection: 'row', backgroundColor: '#FF6B35', padding: 10, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }, dateText: { color: '#fff', fontWeight: 'bold', marginLeft: 6 }, arrowLine: { width: 20, height: 2, backgroundColor: '#ddd', marginHorizontal: 10, marginTop: 15 },
+  summaryCard: { backgroundColor: '#fff', margin: 16, padding: 20, borderRadius: 16, elevation: 4, alignItems: 'center' }, summaryLabel: { fontSize: 16, color: '#888', marginBottom: 5 }, summaryValue: { fontSize: 32, fontWeight: 'bold', color: '#27ae60' }, divider: { height: 1, backgroundColor: '#eee', width: '100%', marginVertical: 15 }, row: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' }, subLabel: { fontSize: 16, color: '#555', fontWeight: '500' },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginLeft: 16, marginBottom: 10 },
+  topItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, marginVertical: 6, borderRadius: 12, elevation: 2 },
+  rankBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#FF6B35', alignItems: 'center', justifyContent: 'center' }, rankText: { color: '#fff', fontWeight: 'bold' }, topName: { fontSize: 16, fontWeight: '600', color: '#333' }, topQty: { fontSize: 14, color: '#888' }, topRevenue: { fontSize: 16, fontWeight: 'bold', color: '#27ae60' },
+  emptyText: { textAlign: 'center', color: '#999', marginTop: 20, fontSize: 16 }
 });
