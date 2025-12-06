@@ -1,33 +1,41 @@
+// File: src/stores/settingsStore.ts
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { supabase } from '../services/supabase'; // Đảm bảo import supabase
 
 export type PrinterId = 'printer1' | 'printer2' | null;
 
 export interface SettingsState {
+  // Các cài đặt riêng của máy (Local)
   shopName: string;
   address: string;
   phone: string;
   thankYouMessage: string;
-  
   bankId: string;
   accountNo: string;
+  isVatEnabled: boolean;
+  vatPercent: number;
 
-  // === Cấu hình máy in IP ===
+  // Các cài đặt đồng bộ qua Server (IP Máy in)
   printer1: string; 
   printer2: string;
   kitchenPrinterId: PrinterId;
   paymentPrinterId: PrinterId;
-
-  isVatEnabled: boolean;
-  vatPercent: number;
   
+  // Hàm cập nhật local (nhanh)
   setSettings: (settings: Partial<SettingsState>) => void;
+
+  // Hàm cập nhật lên Server (cho Admin) - ĐÂY LÀ HÀM BẠN ĐANG THIẾU
+  updateServerSettings: (settings: Partial<SettingsState>) => Promise<void>;
+  
+  // Hàm tải từ Server về (cho Nhân viên)
+  syncWithServer: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       shopName: 'Ốc Na Quán',
       address: '123 Đường ABC, Quận 1, TP. HCM',
       phone: '0901 234 567',
@@ -35,7 +43,7 @@ export const useSettingsStore = create<SettingsState>()(
       bankId: 'MB', 
       accountNo: '',
 
-      printer1: '192.168.1.200', // Mặc định
+      printer1: '192.168.1.200',
       printer2: '',
       kitchenPrinterId: 'printer1',
       paymentPrinterId: 'printer1',
@@ -43,8 +51,50 @@ export const useSettingsStore = create<SettingsState>()(
       isVatEnabled: true,
       vatPercent: 10,
       
-      setSettings: (settings) =>
-        set((state) => ({ ...state, ...settings })),
+      // 1. Cập nhật Local
+      setSettings: (settings) => set((state) => ({ ...state, ...settings })),
+
+      // 2. Tải từ Server về (Đồng bộ)
+      syncWithServer: async () => {
+        try {
+          // Lấy dòng cài đặt có id=1
+          const { data, error } = await supabase
+            .from('restaurant_settings')
+            .select('*')
+            .eq('id', 1)
+            .single();
+            
+          if (data) {
+            set({
+              printer1: data.printer1 || '',
+              printer2: data.printer2 || '',
+              kitchenPrinterId: data.kitchen_printer_id as PrinterId,
+              paymentPrinterId: data.payment_printer_id as PrinterId,
+            });
+          }
+        } catch (e) {
+          console.log("Lỗi sync settings:", e);
+        }
+      },
+
+      // 3. Lưu lên Server (Chỉ Admin dùng)
+      updateServerSettings: async (newSettings) => {
+        // Cập nhật local trước cho mượt
+        set((state) => ({ ...state, ...newSettings }));
+        
+        try {
+          // Gửi lên Supabase
+          await supabase.from('restaurant_settings').upsert({
+            id: 1, // Luôn lưu vào dòng ID=1
+            printer1: newSettings.printer1 !== undefined ? newSettings.printer1 : get().printer1,
+            printer2: newSettings.printer2 !== undefined ? newSettings.printer2 : get().printer2,
+            kitchen_printer_id: newSettings.kitchenPrinterId !== undefined ? newSettings.kitchenPrinterId : get().kitchenPrinterId,
+            payment_printer_id: newSettings.paymentPrinterId !== undefined ? newSettings.paymentPrinterId : get().paymentPrinterId,
+          });
+        } catch (e) {
+          console.log("Lỗi lưu settings server:", e);
+        }
+      }
     }),
     {
       name: 'ocna-settings-storage',

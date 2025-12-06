@@ -1,3 +1,4 @@
+// File: app/(app)/settings.tsx
 import { Picker } from '@react-native-picker/picker';
 import { ChevronDown, ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
@@ -14,7 +15,6 @@ const BANK_LIST = [
   { label: 'BIDV', value: 'BIDV' },
   { label: 'Agribank', value: 'VBA' },
   { label: 'Techcombank', value: 'TCB' },
-  { label: 'VPBank', value: 'VPB' },
   { label: 'ACB', value: 'ACB' },
   { label: 'Sacombank', value: 'STB' },
   { label: 'TPBank', value: 'TPB' },
@@ -40,10 +40,12 @@ export default function SettingsScreen() {
   const { role } = useAuth(); 
 
   const {
-    shopName, address, phone, thankYouMessage, bankId, accountNo,
+    shopName, address, phone, thankYouMessage, 
+    bankId, accountNo,
     printer1, printer2, kitchenPrinterId, paymentPrinterId,
     isVatEnabled, vatPercent,
-    setSettings,
+    setSettings, 
+    updateServerSettings // Lấy hàm này ra để dùng
   } = useSettingsStore(useShallow((state) => state));
 
   const handleLogout = async () => {
@@ -52,8 +54,14 @@ export default function SettingsScreen() {
     setIsLoading(false);
   };
 
-  const updateSetting = (key: keyof SettingsState, value: any) => {
+  // Cập nhật cài đặt thường (Local)
+  const updateLocal = (key: keyof SettingsState, value: any) => {
     setSettings({ [key as string]: value } as Partial<SettingsState>);
+  };
+
+  // Cập nhật Máy in (Server)
+  const handleSavePrinter = (key: keyof SettingsState, value: any) => {
+    updateServerSettings({ [key as string]: value } as Partial<SettingsState>);
   };
 
   return (
@@ -64,24 +72,43 @@ export default function SettingsScreen() {
         <>
           <CollapsibleSection title="Thông tin quán & Hóa đơn" startOpen={true}>
             <Text style={styles.label}>Tên cửa hàng</Text>
-            <TextInput style={styles.input} value={shopName} onChangeText={(val) => updateSetting('shopName', val)} />
+            <TextInput style={styles.input} value={shopName} onChangeText={(val) => updateLocal('shopName', val)} />
             <Text style={styles.label}>Địa chỉ</Text>
-            <TextInput style={styles.input} value={address} onChangeText={(val) => updateSetting('address', val)} />
+            <TextInput style={styles.input} value={address} onChangeText={(val) => updateLocal('address', val)} />
             <Text style={styles.label}>Số điện thoại</Text>
-            <TextInput style={styles.input} value={phone} onChangeText={(val) => updateSetting('phone', val)} keyboardType="phone-pad" />
+            <TextInput style={styles.input} value={phone} onChangeText={(val) => updateLocal('phone', val)} keyboardType="phone-pad" />
             <Text style={styles.label}>Lời cảm ơn</Text>
-            <TextInput style={styles.input} value={thankYouMessage} onChangeText={(val) => updateSetting('thankYouMessage', val)} />
+            <TextInput style={styles.input} value={thankYouMessage} onChangeText={(val) => updateLocal('thankYouMessage', val)} />
           </CollapsibleSection>
 
-          <CollapsibleSection title="Cài đặt Máy in">
+          {/* PHẦN MÁY IN ĐỒNG BỘ */}
+          <CollapsibleSection title="Cài đặt Máy in (Đồng bộ)">
             <Text style={styles.label}>IP Máy in 1 (Chính)</Text>
-            <TextInput style={styles.input} value={printer1} onChangeText={(val) => updateSetting('printer1', val)} placeholder="VD: 192.168.1.200" keyboardType="numeric" />
-            <Text style={styles.label}>IP Máy in 2 (Phụ)</Text>
-            <TextInput style={styles.input} value={printer2} onChangeText={(val) => updateSetting('printer2', val)} placeholder="VD: 192.168.1.201" keyboardType="numeric" />
+            <TextInput 
+              style={styles.input} 
+              value={printer1} 
+              onChangeText={(val) => setSettings({ printer1: val })} // Sửa hiển thị ngay
+              onEndEditing={() => handleSavePrinter('printer1', printer1)} // Gõ xong mới lưu Server
+              placeholder="VD: 192.168.1.200" 
+              keyboardType="numeric"
+            />
             
+            <Text style={styles.label}>IP Máy in 2 (Phụ)</Text>
+            <TextInput 
+              style={styles.input} 
+              value={printer2} 
+              onChangeText={(val) => setSettings({ printer2: val })}
+              onEndEditing={() => handleSavePrinter('printer2', printer2)}
+              placeholder="VD: 192.168.1.201" 
+              keyboardType="numeric"
+            />
+
             <Text style={styles.label}>Máy in BẾP dùng:</Text>
             <View style={styles.pickerContainer}>
-              <Picker selectedValue={kitchenPrinterId} onValueChange={(val) => updateSetting('kitchenPrinterId', val)}>
+              <Picker 
+                selectedValue={kitchenPrinterId} 
+                onValueChange={(val) => handleSavePrinter('kitchenPrinterId', val)}
+              >
                 <Picker.Item label="Không in" value={null} />
                 <Picker.Item label="Máy in 1" value="printer1" />
                 <Picker.Item label="Máy in 2" value="printer2" />
@@ -90,7 +117,10 @@ export default function SettingsScreen() {
 
             <Text style={styles.label}>Máy in HÓA ĐƠN dùng:</Text>
             <View style={styles.pickerContainer}>
-              <Picker selectedValue={paymentPrinterId} onValueChange={(val) => updateSetting('paymentPrinterId', val)}>
+              <Picker 
+                selectedValue={paymentPrinterId} 
+                onValueChange={(val) => handleSavePrinter('paymentPrinterId', val)}
+              >
                 <Picker.Item label="Không in" value={null} />
                 <Picker.Item label="Máy in 1" value="printer1" />
                 <Picker.Item label="Máy in 2" value="printer2" />
@@ -98,26 +128,26 @@ export default function SettingsScreen() {
             </View>
           </CollapsibleSection>
 
-          <CollapsibleSection title="Thanh toán QR">
+          <CollapsibleSection title="Thanh toán QR (VietQR)">
             <Text style={styles.label}>Ngân hàng</Text>
             <View style={styles.pickerContainer}>
-              <Picker selectedValue={bankId} onValueChange={(val) => updateSetting('bankId', val)}>
+              <Picker selectedValue={bankId} onValueChange={(val) => updateLocal('bankId', val)}>
                 {BANK_LIST.map(b => <Picker.Item key={b.value} label={b.label} value={b.value} />)}
               </Picker>
             </View>
             <Text style={styles.label}>Số tài khoản</Text>
-            <TextInput style={styles.input} value={accountNo} onChangeText={(val) => updateSetting('accountNo', val)} keyboardType="numeric" placeholder="Nhập số tài khoản..." />
+            <TextInput style={styles.input} value={accountNo} onChangeText={(val) => updateLocal('accountNo', val)} keyboardType="numeric" placeholder="Nhập số tài khoản..." />
           </CollapsibleSection>
 
           <CollapsibleSection title="Cài đặt VAT">
             <View style={styles.switchRow}>
               <Text style={styles.label}>Bật VAT</Text>
-              <Switch value={isVatEnabled} onValueChange={(val) => updateSetting('isVatEnabled', val)} />
+              <Switch value={isVatEnabled} onValueChange={(val) => updateLocal('isVatEnabled', val)} />
             </View>
             {isVatEnabled && (
               <>
                 <Text style={styles.label}>Phần trăm VAT (%)</Text>
-                <TextInput style={styles.input} value={String(vatPercent)} onChangeText={(val) => updateSetting('vatPercent', Number(val) || 0)} keyboardType="numeric" />
+                <TextInput style={styles.input} value={String(vatPercent)} onChangeText={(val) => updateLocal('vatPercent', Number(val) || 0)} keyboardType="numeric" />
               </>
             )}
           </CollapsibleSection>

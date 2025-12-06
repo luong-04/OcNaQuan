@@ -31,7 +31,7 @@ const sendToPrinter = (ip: string, port: number, data: string): Promise<void> =>
     });
     client.on('error', (error) => {
       console.log('Printer Error:', error);
-      Alert.alert("Kết nối", `Không tìm thấy máy in tại ${ip} (Giả lập thành công)`);
+      Alert.alert("Kết nối", `Không tìm thấy máy in tại ${ip}`);
       resolve(); 
     });
     setTimeout(() => { client.destroy(); resolve(); }, 3000);
