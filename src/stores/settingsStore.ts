@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import { supabase } from '../services/supabase'; // Đảm bảo import supabase
+import { supabase } from '../services/supabase';
 
 export type PrinterId = 'printer1' | 'printer2' | null;
 
@@ -14,6 +14,10 @@ export interface SettingsState {
   thankYouMessage: string;
   bankId: string;
   accountNo: string;
+  
+  // --- [MỚI] THÊM BIẾN NÀY ĐỂ FIX LỖI ---
+  rawVietQR: string; 
+
   isVatEnabled: boolean;
   vatPercent: number;
 
@@ -26,7 +30,7 @@ export interface SettingsState {
   // Hàm cập nhật local (nhanh)
   setSettings: (settings: Partial<SettingsState>) => void;
 
-  // Hàm cập nhật lên Server (cho Admin) - ĐÂY LÀ HÀM BẠN ĐANG THIẾU
+  // Hàm cập nhật lên Server (cho Admin)
   updateServerSettings: (settings: Partial<SettingsState>) => Promise<void>;
   
   // Hàm tải từ Server về (cho Nhân viên)
@@ -42,6 +46,9 @@ export const useSettingsStore = create<SettingsState>()(
       thankYouMessage: 'Cảm ơn quý khách. Hẹn gặp lại!',
       bankId: 'MB', 
       accountNo: '',
+
+      // --- [MỚI] KHỞI TẠO GIÁ TRỊ RỖNG ---
+      rawVietQR: '', 
 
       printer1: '192.168.1.200',
       printer2: '',
@@ -70,6 +77,8 @@ export const useSettingsStore = create<SettingsState>()(
               printer2: data.printer2 || '',
               kitchenPrinterId: data.kitchen_printer_id as PrinterId,
               paymentPrinterId: data.payment_printer_id as PrinterId,
+              // Nếu bạn muốn đồng bộ rawVietQR từ server thì cần thêm cột trong DB và map ở đây
+              // Hiện tại chỉ lưu local trên máy
             });
           }
         } catch (e) {

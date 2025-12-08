@@ -41,11 +41,11 @@ export default function SettingsScreen() {
 
   const {
     shopName, address, phone, thankYouMessage, 
-    bankId, accountNo,
+    bankId, accountNo, rawVietQR, // <--- 1. LẤY BIẾN NÀY TỪ STORE (Nhớ update store nhé)
     printer1, printer2, kitchenPrinterId, paymentPrinterId,
     isVatEnabled, vatPercent,
     setSettings, 
-    updateServerSettings // Lấy hàm này ra để dùng
+    updateServerSettings 
   } = useSettingsStore(useShallow((state) => state));
 
   const handleLogout = async () => {
@@ -54,12 +54,10 @@ export default function SettingsScreen() {
     setIsLoading(false);
   };
 
-  // Cập nhật cài đặt thường (Local)
   const updateLocal = (key: keyof SettingsState, value: any) => {
     setSettings({ [key as string]: value } as Partial<SettingsState>);
   };
 
-  // Cập nhật Máy in (Server)
   const handleSavePrinter = (key: keyof SettingsState, value: any) => {
     updateServerSettings({ [key as string]: value } as Partial<SettingsState>);
   };
@@ -81,14 +79,13 @@ export default function SettingsScreen() {
             <TextInput style={styles.input} value={thankYouMessage} onChangeText={(val) => updateLocal('thankYouMessage', val)} />
           </CollapsibleSection>
 
-          {/* PHẦN MÁY IN ĐỒNG BỘ */}
           <CollapsibleSection title="Cài đặt Máy in (Đồng bộ)">
             <Text style={styles.label}>IP Máy in 1 (Chính)</Text>
             <TextInput 
               style={styles.input} 
               value={printer1} 
-              onChangeText={(val) => setSettings({ printer1: val })} // Sửa hiển thị ngay
-              onEndEditing={() => handleSavePrinter('printer1', printer1)} // Gõ xong mới lưu Server
+              onChangeText={(val) => setSettings({ printer1: val })} 
+              onEndEditing={() => handleSavePrinter('printer1', printer1)}
               placeholder="VD: 192.168.1.200" 
               keyboardType="numeric"
             />
@@ -129,14 +126,27 @@ export default function SettingsScreen() {
           </CollapsibleSection>
 
           <CollapsibleSection title="Thanh toán QR (VietQR)">
-            <Text style={styles.label}>Ngân hàng</Text>
+            <Text style={styles.label}>Ngân hàng (Để hiển thị tên)</Text>
             <View style={styles.pickerContainer}>
               <Picker selectedValue={bankId} onValueChange={(val) => updateLocal('bankId', val)}>
                 {BANK_LIST.map(b => <Picker.Item key={b.value} label={b.label} value={b.value} />)}
               </Picker>
             </View>
-            <Text style={styles.label}>Số tài khoản</Text>
+            <Text style={styles.label}>Số tài khoản (Để hiển thị số)</Text>
             <TextInput style={styles.input} value={accountNo} onChangeText={(val) => updateLocal('accountNo', val)} keyboardType="numeric" placeholder="Nhập số tài khoản..." />
+            
+            {/* --- 2. THÊM Ô NHẬP RAW STRING Ở ĐÂY --- */}
+            <Text style={[styles.label, {color: '#d35400', fontWeight: 'bold'}]}>Mã QR Gốc (Copy từ Zalo)</Text>
+            <Text style={{fontSize: 12, color: '#777', marginBottom: 5}}>
+              *Quét ảnh mã QR ngân hàng bằng Zalo, copy đoạn mã hiện ra và dán vào đây để in chính xác 100%.
+            </Text>
+            <TextInput 
+                style={[styles.input, {height: 80, textAlignVertical: 'top'}]} 
+                value={rawVietQR} // Biến này lấy từ Store
+                onChangeText={(val) => updateLocal('rawVietQR', val)} 
+                multiline={true}
+                placeholder="VD: 00020101021238..." 
+            />
           </CollapsibleSection>
 
           <CollapsibleSection title="Cài đặt VAT">
